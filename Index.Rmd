@@ -1,0 +1,152 @@
+---
+title: "Take Home Submission"
+author: "Eric Zarycki"
+date: "2025-05-19"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+# Tools Used for this project
+
+- R for Data Cleaning
+- SQL for Data Analysis
+- Tableau for Visualizations
+
+```{r}
+# Libraries Used
+
+library(readxl) # For importing the data
+library(openxlsx) # New library for reading excel since the above doesn't work with dates
+library(lubridate) # For working with dates 
+library(dplyr) # For data cleaning
+library(writexl) # to export cleaned data
+```
+
+# Step 0: Import and Glance at Data
+
+```{r}
+#Data import
+df <- read.xlsx("Data/MDC1_BL.xlsx", detectDates = TRUE)
+head(df)
+```
+
+
+```{r}
+str(df)
+```
+
+```{r}
+colnames(df)
+```
+# Step 1: Cleaning the data for analyses
+```{r}
+#Copying the dataframe
+df_cleaned <- df
+```
+-- Removing unnecessary columns (i.e. "Delete this row")
+```{r}
+df_cleaned <- df_cleaned %>% select(-Delete.This.Row)
+```
+-- Cleaning up the column names
+```{r}
+df_cleaned <- df_cleaned %>% rename(
+  Activity_ID = Activity.ID,
+  Activity_Status = Activity.Status,
+  WBS_CD = WBS.Code,
+  Activity_Type = `(*)Activity.Type`,
+  Activity_Name = Activity.Name,
+  Planned_Start_DT = `(*)Planned.Start`,
+  Planned_Finish_DT = `(*)Planned.Finish`,
+  Actual_Start_DT = Actual.Start,
+  Actual_Finish_DT = Actual.Finish,
+  ML_Planned_DT = ML.Planned.Date,
+  ML_Actual_DT = ML.Actual.Date,
+  Activity_Complete_PCNT = `Activity.%.Complete(%)`,
+  Actual_Dur = `(*)Actual.Duration(d)`,
+  Remaining_Dur = `Remaining.Duration(d)`,
+  Original_Dur = `Original.Duration(d)`,
+  Total_Float = `(*)Total.Float(d)`,
+  Remaining_Float = `(*)Remaining.Float(d)`,
+  Primary_Constraint = Primary.Constraint,
+  Primary_Constraint_DT = Primary.Constraint.Date,
+  Sec_Constraint = Secondary.Constraint,
+  Sec_Constraint_DT = Secondary.Constraint.Date,
+  Pred_DTL = `(*)Predecessor.Details`,
+  Sec_DTL = `(*)Successor.Details`,
+  Resources = `(*)Resources`,
+  Budgeted_Labor_Units = `(*)Budgeted.Labor.Units(h)`,
+  Budgeted_Nonlabor_Units = `(*)Budgeted.Nonlabor.Units(h)`
+)
+
+```
+-- Formatting data types
+```{r}
+# Chr fields
+df_cleaned <- df_cleaned %>% mutate(across(c(Activity_ID,
+                                      Activity_Status,
+                                      WBS_CD,
+                                      Activity_Type,
+                                      Activity_Name,
+                                      Primary_Constraint,
+                                      Sec_Constraint,
+                                      Pred_DTL,
+                                      Sec_DTL,
+                                      Resources
+                                      ), as.character))
+# Num Fields
+df_cleaned <- df_cleaned %>% mutate(across(c(Activity_Complete_PCNT, # was chr before
+                                             Actual_Dur,
+                                             Remaining_Dur,
+                                             Original_Dur,
+                                             Total_Float,
+                                             Remaining_Float, # was chr before
+                                             Budgeted_Labor_Units, # was chr before
+                                             Budgeted_Nonlabor_Units # was chr before
+                                      ), as.numeric))
+
+# Converting ExcelSerial Date Format into a Format for PostgresSQL
+date_cols <- c(
+  "Planned_Start_DT",
+  "Planned_Finish_DT",
+  "Actual_Start_DT",
+  "Actual_Finish_DT",
+  "ML_Planned_DT",
+  "Sec_Constraint_DT",
+  "Primary_Constraint_DT"
+)
+
+for (col in date_cols) {
+  df_cleaned[[col]][df_cleaned[[col]] == 0] <- NA
+  df_cleaned[[col]] <- as.POSIXct(round(df_cleaned[[col]] * 86400), origin = "1899-12-30", tz = "UTC")
+}
+
+```
+
+-- Exporting Data for Reference
+
+```{r}
+write.csv(df_cleaned, "Data/cleaned_data.csv")
+```
+
+# Step 2: Connecting Data to Postgres
+```{r}
+library(RPostgreSQL)
+```
+```{r}
+con <- dbConnect(
+  RPostgres::Postgres(),
+  dbname = "postgres",
+  host = "localhost",       # e.g. "localhost" or IP
+  port = 5432,              # default port for PostgreSQL
+  user = "postgres",
+)
+```
+
+```{r}
+dbWriteTable(con, "ProjectPlanning", df_cleaned, overwrite = TRUE)
+```
+
+
+
+

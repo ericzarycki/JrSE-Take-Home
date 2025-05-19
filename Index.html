@@ -577,7 +577,7 @@ date_cols &lt;- c(
 
 for (col in date_cols) {
   df_cleaned[[col]][df_cleaned[[col]] == 0] &lt;- NA
-  df_cleaned[[col]] &lt;- as.POSIXct(df_cleaned[[col]] * 86400, origin = &quot;1900-01-01&quot;, tz = &quot;UTC&quot;)
+  df_cleaned[[col]] &lt;- as.POSIXct(round(df_cleaned[[col]] * 86400), origin = &quot;1899-12-30&quot;, tz = &quot;UTC&quot;)
 }</code></pre>
 <p>– Exporting Data for Reference</p>
 <pre class="r"><code>write.csv(df_cleaned, &quot;Data/cleaned_data.csv&quot;)</code></pre>
